@@ -1,49 +1,56 @@
 package com.chessinsights.service;
 
+import com.chessinsights.entity.ChessGame;
 import com.chessinsights.entity.User;
 import com.chessinsights.repository.GameRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * Computes chess analytics from stored game data.
- * Results are cached in Redis and invalidated on new game sync.
- */
 @Service
 @RequiredArgsConstructor
 public class StatsService {
 
     private final GameRepository gameRepository;
 
+    public long countGames(User user, String timeClass, String color, Instant from) {
+        return getFilteredGames(user, timeClass, color, from).size();
+    }
+
     /**
-     * Overall win/loss/draw record.
-     * Returns: { "total": 500, "wins": 250, "losses": 200, "draws": 50,
-     *            "winRate": 50.0, "lossRate": 40.0, "drawRate": 10.0 }
+     * Average accuracy across filtered games (only games that have accuracy data).
      */
-    public Map<String, Object> getOverallRecord(User user, String timeClass) {
-        List<Object[]> results;
-        if (timeClass != null) {
-            results = gameRepository.countByResultAndTimeClass(user, timeClass);
-        } else {
-            results = gameRepository.countByResult(user);
-        }
+    public Double getAverageAccuracy(User user, String timeClass, String color, Instant from) {
+        List<ChessGame> games = getFilteredGames(user, timeClass, color, from);
+        OptionalDouble avg = games.stream()
+                .filter(g -> g.getAccuracy() != null)
+                .mapToDouble(ChessGame::getAccuracy)
+                .average();
+        return avg.isPresent() ? Math.round(avg.getAsDouble() * 10.0) / 10.0 : null;
+    }
 
-        long wins = 0, losses = 0, draws = 0;
-        for (Object[] row : results) {
-            String result = (String) row[0];
-            long count = (Long) row[1];
-            switch (result) {
-                case "win" -> wins = count;
-                case "loss" -> losses = count;
-                case "draw" -> draws = count;
-            }
-        }
+    /**
+     * Average opponent rating across filtered games.
+     */
+    public Double getAverageOpponentRating(User user, String timeClass, String color, Instant from) {
+        List<ChessGame> games = getFilteredGames(user, timeClass, color, from);
+        OptionalDouble avg = games.stream()
+                .mapToInt(ChessGame::getOpponentRating)
+                .average();
+        return avg.isPresent() ? Math.round(avg.getAsDouble() * 10.0) / 10.0 : null;
+    }
 
+    public Map<String, Object> getOverallRecord(User user, String timeClass, String color, Instant from) {
+        List<ChessGame> games = getFilteredGames(user, timeClass, color, from);
+
+        long wins = games.stream().filter(g -> "win".equals(g.getResult())).count();
+        long losses = games.stream().filter(g -> "loss".equals(g.getResult())).count();
+        long draws = games.stream().filter(g -> "draw".equals(g.getResult())).count();
         long total = wins + losses + draws;
+
         Map<String, Object> record = new LinkedHashMap<>();
         record.put("total", total);
         record.put("wins", wins);
@@ -53,64 +60,46 @@ public class StatsService {
         record.put("lossRate", total > 0 ? round((double) losses / total * 100) : 0);
         record.put("drawRate", total > 0 ? round((double) draws / total * 100) : 0);
 
-        if (timeClass != null) {
-            record.put("timeClass", timeClass);
-        }
-
         return record;
     }
 
-    /**
-     * Win/loss/draw breakdown by color (white vs black).
-     */
-    public Map<String, Object> getColorBreakdown(User user) {
-        List<Object[]> results = gameRepository.countByColorAndResult(user);
-
-        Map<String, Map<String, Long>> colorStats = new LinkedHashMap<>();
-        colorStats.put("white", new LinkedHashMap<>(Map.of("win", 0L, "loss", 0L, "draw", 0L)));
-        colorStats.put("black", new LinkedHashMap<>(Map.of("win", 0L, "loss", 0L, "draw", 0L)));
-
-        for (Object[] row : results) {
-            String color = (String) row[0];
-            String result = (String) row[1];
-            long count = (Long) row[2];
-            if (colorStats.containsKey(color)) {
-                colorStats.get(color).put(result, count);
-            }
-        }
+    public Map<String, Object> getColorBreakdown(User user, String timeClass, Instant from) {
+        List<ChessGame> games = getFilteredGames(user, timeClass, null, from);
 
         Map<String, Object> response = new LinkedHashMap<>();
-        for (var entry : colorStats.entrySet()) {
-            Map<String, Long> stats = entry.getValue();
-            long total = stats.values().stream().mapToLong(Long::longValue).sum();
-            Map<String, Object> colorData = new LinkedHashMap<>(stats);
+        for (String c : List.of("white", "black")) {
+            long wins = games.stream()
+                    .filter(g -> c.equals(g.getUserColor()) && "win".equals(g.getResult())).count();
+            long losses = games.stream()
+                    .filter(g -> c.equals(g.getUserColor()) && "loss".equals(g.getResult())).count();
+            long draws = games.stream()
+                    .filter(g -> c.equals(g.getUserColor()) && "draw".equals(g.getResult())).count();
+            long total = wins + losses + draws;
+
+            Map<String, Object> colorData = new LinkedHashMap<>();
+            colorData.put("win", wins);
+            colorData.put("loss", losses);
+            colorData.put("draw", draws);
             colorData.put("total", total);
-            colorData.put("winRate", total > 0 ? round((double) stats.get("win") / total * 100) : 0);
-            response.put(entry.getKey(), colorData);
+            colorData.put("winRate", total > 0 ? round((double) wins / total * 100) : 0);
+            response.put(c, colorData);
         }
 
         return response;
     }
 
-    /**
-     * Opening analysis - win rate by opening name.
-     * Returns list sorted by total games played (most popular first).
-     */
-    public List<Map<String, Object>> getOpeningStats(User user) {
-        List<Object[]> results = gameRepository.countByOpeningAndResult(user);
+    public List<Map<String, Object>> getOpeningStats(User user, String timeClass, String color, Instant from) {
+        List<ChessGame> games = getFilteredGames(user, timeClass, color, from);
 
-        // Group by opening name
         Map<String, Map<String, Object>> openingMap = new LinkedHashMap<>();
-        for (Object[] row : results) {
-            String openingName = (String) row[0];
-            String ecoCode = (String) row[1];
-            String result = (String) row[2];
-            long count = (Long) row[3];
+        for (ChessGame game : games) {
+            String openingName = game.getOpeningName();
+            if (openingName == null) continue;
 
             openingMap.computeIfAbsent(openingName, k -> {
                 Map<String, Object> m = new LinkedHashMap<>();
                 m.put("opening", openingName);
-                m.put("ecoCode", ecoCode);
+                m.put("ecoCode", game.getEcoCode());
                 m.put("wins", 0L);
                 m.put("losses", 0L);
                 m.put("draws", 0L);
@@ -118,14 +107,13 @@ public class StatsService {
             });
 
             Map<String, Object> stats = openingMap.get(openingName);
-            switch (result) {
-                case "win" -> stats.put("wins", count);
-                case "loss" -> stats.put("losses", count);
-                case "draw" -> stats.put("draws", count);
+            switch (game.getResult()) {
+                case "win" -> stats.put("wins", (Long) stats.get("wins") + 1);
+                case "loss" -> stats.put("losses", (Long) stats.get("losses") + 1);
+                case "draw" -> stats.put("draws", (Long) stats.get("draws") + 1);
             }
         }
 
-        // Calculate totals and win rates, sort by total games
         return openingMap.values().stream()
                 .map(stats -> {
                     long w = (Long) stats.get("wins");
@@ -140,46 +128,26 @@ public class StatsService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Rating progression over time.
-     * Returns list of { "playedAt": "...", "rating": 1200, "timeClass": "blitz" }
-     */
-    public List<Map<String, Object>> getRatingProgression(User user, String timeClass) {
-        List<Object[]> results;
-        if (timeClass != null) {
-            results = gameRepository.getRatingProgressionByTimeClass(user, timeClass);
-            return results.stream().map(row -> {
-                Map<String, Object> point = new LinkedHashMap<>();
-                point.put("playedAt", row[0].toString());
-                point.put("rating", row[1]);
-                point.put("timeClass", timeClass);
-                return point;
-            }).collect(Collectors.toList());
-        } else {
-            results = gameRepository.getRatingProgression(user);
-            return results.stream().map(row -> {
-                Map<String, Object> point = new LinkedHashMap<>();
-                point.put("playedAt", row[0].toString());
-                point.put("rating", row[1]);
-                point.put("timeClass", row[2]);
-                return point;
-            }).collect(Collectors.toList());
-        }
+    public List<Map<String, Object>> getRatingProgression(User user, String timeClass, Instant from) {
+        List<ChessGame> games = getFilteredGames(user, timeClass, null, from);
+
+        return games.stream()
+                .sorted(Comparator.comparing(ChessGame::getPlayedAt))
+                .map(g -> {
+                    Map<String, Object> point = new LinkedHashMap<>();
+                    point.put("playedAt", g.getPlayedAt().toString());
+                    point.put("rating", g.getUserRating());
+                    point.put("timeClass", g.getTimeClass());
+                    return point;
+                })
+                .collect(Collectors.toList());
     }
 
-    /**
-     * Performance by hour of day (UTC).
-     * Helps answer: "When do I play my best chess?"
-     */
     public List<Map<String, Object>> getTimeOfDayStats(User user) {
         List<Object[]> results = gameRepository.countByHourOfDayAndResult(user.getId());
         return aggregateTimeStats(results, "hour", 24);
     }
 
-    /**
-     * Performance by day of week.
-     * Postgres DOW: 0=Sunday, 1=Monday, ..., 6=Saturday
-     */
     public List<Map<String, Object>> getDayOfWeekStats(User user) {
         List<Object[]> results = gameRepository.countByDayOfWeekAndResult(user.getId());
         String[] dayNames = {"Sunday", "Monday", "Tuesday", "Wednesday",
@@ -193,11 +161,18 @@ public class StatsService {
         return stats;
     }
 
-    // --- Helper Methods ---
+    private List<ChessGame> getFilteredGames(User user, String timeClass, String color, Instant from) {
+        List<ChessGame> games = gameRepository.findByUserOrderByPlayedAtDesc(user);
+
+        return games.stream()
+                .filter(g -> timeClass == null || timeClass.equalsIgnoreCase(g.getTimeClass()))
+                .filter(g -> color == null || color.equalsIgnoreCase(g.getUserColor()))
+                .filter(g -> from == null || g.getPlayedAt().isAfter(from))
+                .collect(Collectors.toList());
+    }
 
     private List<Map<String, Object>> aggregateTimeStats(List<Object[]> results,
                                                           String periodKey, int periods) {
-        // Initialize all periods
         Map<Integer, Map<String, Long>> periodMap = new LinkedHashMap<>();
         for (int i = 0; i < periods; i++) {
             periodMap.put(i, new LinkedHashMap<>(Map.of("win", 0L, "loss", 0L, "draw", 0L)));

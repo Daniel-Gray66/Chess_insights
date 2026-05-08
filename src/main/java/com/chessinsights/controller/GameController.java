@@ -14,10 +14,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 @RestController
 @RequestMapping("/api/games")
@@ -30,27 +30,43 @@ public class GameController {
     private final UserRepository userRepository;
 
     @GetMapping
-    @Operation(summary = "Search and filter games",
-               description = "Search games by time class, result, opponent, opening, " +
-                             "and date range. All filters are optional.")
+    @Operation(summary = "Search and filter games")
     public ResponseEntity<List<Map<String, Object>>> searchGames(
             Authentication auth,
             @Parameter(description = "Filter by time class") @RequestParam(required = false) String timeClass,
             @Parameter(description = "Filter by result (win, loss, draw)") @RequestParam(required = false) String result,
             @Parameter(description = "Search by opponent username") @RequestParam(required = false) String opponent,
-            @Parameter(description = "Search by opening name") @RequestParam(required = false) String opening,
-            @Parameter(description = "From date (ISO-8601)") @RequestParam(required = false) String from,
-            @Parameter(description = "To date (ISO-8601)") @RequestParam(required = false) String to
+            @Parameter(description = "Search by opening name") @RequestParam(required = false) String opening
     ) {
         User user = getUser(auth);
 
-        Instant fromInstant = from != null ? Instant.parse(from) : null;
-        Instant toInstant = to != null ? Instant.parse(to) : null;
+        // Use simple JPA queries, then filter in Java to avoid PostgreSQL null parameter type issues
+        List<ChessGame> games;
 
-        List<ChessGame> games = gameRepository.searchGames(
-                user, timeClass, result, opponent, opening, fromInstant, toInstant);
+        if (timeClass != null && !timeClass.isBlank()) {
+            games = gameRepository.findByUserAndTimeClassOrderByPlayedAtDesc(user, timeClass);
+        } else {
+            games = gameRepository.findByUserOrderByPlayedAtDesc(user);
+        }
 
-        List<Map<String, Object>> response = games.stream()
+        // Apply additional filters in Java
+        Stream<ChessGame> stream = games.stream();
+
+        if (result != null && !result.isBlank()) {
+            stream = stream.filter(g -> result.equalsIgnoreCase(g.getResult()));
+        }
+        if (opponent != null && !opponent.isBlank()) {
+            String lowerOpp = opponent.toLowerCase();
+            stream = stream.filter(g -> g.getOpponentUsername() != null &&
+                    g.getOpponentUsername().toLowerCase().contains(lowerOpp));
+        }
+        if (opening != null && !opening.isBlank()) {
+            String lowerOpening = opening.toLowerCase();
+            stream = stream.filter(g -> g.getOpeningName() != null &&
+                    g.getOpeningName().toLowerCase().contains(lowerOpening));
+        }
+
+        List<Map<String, Object>> response = stream
                 .map(this::mapGameToResponse)
                 .toList();
 
@@ -58,8 +74,7 @@ public class GameController {
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Get a specific game by ID",
-               description = "Returns full game details including PGN.")
+    @Operation(summary = "Get a specific game by ID")
     public ResponseEntity<Map<String, Object>> getGame(
             Authentication auth,
             @PathVariable Long id) {

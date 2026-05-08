@@ -18,6 +18,8 @@ public interface GameRepository extends JpaRepository<ChessGame, Long> {
 
     List<ChessGame> findByUserOrderByPlayedAtDesc(User user);
 
+    List<ChessGame> findByUserAndUserColorOrderByPlayedAtDesc(User user, String userColor);
+
     List<ChessGame> findByUserAndTimeClassOrderByPlayedAtDesc(User user, String timeClass);
 
     // --- Stats Queries ---
@@ -66,11 +68,11 @@ public interface GameRepository extends JpaRepository<ChessGame, Long> {
 
     // --- Search / Filter ---
 
-    @Query("SELECT g FROM ChessGame g WHERE g.user = :user " +
+@Query("SELECT g FROM ChessGame g WHERE g.user = :user " +
            "AND (:timeClass IS NULL OR g.timeClass = :timeClass) " +
            "AND (:result IS NULL OR g.result = :result) " +
-           "AND (:opponent IS NULL OR LOWER(g.opponentUsername) LIKE LOWER(CONCAT('%', :opponent, '%'))) " +
-           "AND (:opening IS NULL OR LOWER(g.openingName) LIKE LOWER(CONCAT('%', :opening, '%'))) " +
+           "AND (:opponent IS NULL OR LOWER(g.opponentUsername) LIKE LOWER(CONCAT('%', CAST(:opponent AS string), '%'))) " +
+           "AND (:opening IS NULL OR LOWER(g.openingName) LIKE LOWER(CONCAT('%', CAST(:opening AS string), '%'))) " +
            "AND (:from IS NULL OR g.playedAt >= :from) " +
            "AND (:to IS NULL OR g.playedAt <= :to) " +
            "ORDER BY g.playedAt DESC")
