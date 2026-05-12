@@ -4,6 +4,7 @@ import com.chessinsights.entity.ChessGame;
 import com.chessinsights.entity.User;
 import com.chessinsights.repository.GameRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -16,13 +17,12 @@ public class StatsService {
 
     private final GameRepository gameRepository;
 
+    @Cacheable(value = "statsCount", key = "#user.id + '-' + #timeClass + '-' + #color + '-' + #from")
     public long countGames(User user, String timeClass, String color, Instant from) {
         return getFilteredGames(user, timeClass, color, from).size();
     }
 
-    /**
-     * Average accuracy across filtered games (only games that have accuracy data).
-     */
+    @Cacheable(value = "statsAccuracy", key = "#user.id + '-' + #timeClass + '-' + #color + '-' + #from")
     public Double getAverageAccuracy(User user, String timeClass, String color, Instant from) {
         List<ChessGame> games = getFilteredGames(user, timeClass, color, from);
         OptionalDouble avg = games.stream()
@@ -32,9 +32,7 @@ public class StatsService {
         return avg.isPresent() ? Math.round(avg.getAsDouble() * 10.0) / 10.0 : null;
     }
 
-    /**
-     * Average opponent rating across filtered games.
-     */
+    @Cacheable(value = "statsOpponentRating", key = "#user.id + '-' + #timeClass + '-' + #color + '-' + #from")
     public Double getAverageOpponentRating(User user, String timeClass, String color, Instant from) {
         List<ChessGame> games = getFilteredGames(user, timeClass, color, from);
         OptionalDouble avg = games.stream()
@@ -43,6 +41,7 @@ public class StatsService {
         return avg.isPresent() ? Math.round(avg.getAsDouble() * 10.0) / 10.0 : null;
     }
 
+    @Cacheable(value = "statsRecord", key = "#user.id + '-' + #timeClass + '-' + #color + '-' + #from")
     public Map<String, Object> getOverallRecord(User user, String timeClass, String color, Instant from) {
         List<ChessGame> games = getFilteredGames(user, timeClass, color, from);
 
@@ -63,6 +62,7 @@ public class StatsService {
         return record;
     }
 
+    @Cacheable(value = "statsColor", key = "#user.id + '-' + #timeClass + '-' + #from")
     public Map<String, Object> getColorBreakdown(User user, String timeClass, Instant from) {
         List<ChessGame> games = getFilteredGames(user, timeClass, null, from);
 
@@ -88,6 +88,7 @@ public class StatsService {
         return response;
     }
 
+    @Cacheable(value = "statsOpenings", key = "#user.id + '-' + #timeClass + '-' + #color + '-' + #from")
     public List<Map<String, Object>> getOpeningStats(User user, String timeClass, String color, Instant from) {
         List<ChessGame> games = getFilteredGames(user, timeClass, color, from);
 
@@ -128,6 +129,7 @@ public class StatsService {
                 .collect(Collectors.toList());
     }
 
+    @Cacheable(value = "statsRating", key = "#user.id + '-' + #timeClass + '-' + #from")
     public List<Map<String, Object>> getRatingProgression(User user, String timeClass, Instant from) {
         List<ChessGame> games = getFilteredGames(user, timeClass, null, from);
 
@@ -143,11 +145,13 @@ public class StatsService {
                 .collect(Collectors.toList());
     }
 
+    @Cacheable(value = "statsTimeOfDay", key = "#user.id")
     public List<Map<String, Object>> getTimeOfDayStats(User user) {
         List<Object[]> results = gameRepository.countByHourOfDayAndResult(user.getId());
         return aggregateTimeStats(results, "hour", 24);
     }
 
+    @Cacheable(value = "statsDayOfWeek", key = "#user.id")
     public List<Map<String, Object>> getDayOfWeekStats(User user) {
         List<Object[]> results = gameRepository.countByDayOfWeekAndResult(user.getId());
         String[] dayNames = {"Sunday", "Monday", "Tuesday", "Wednesday",

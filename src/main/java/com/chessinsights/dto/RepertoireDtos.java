@@ -11,110 +11,124 @@ public class RepertoireDtos {
     // ── Request DTOs ─────────────────────────────────────────
 
     public record CreateRepertoireRequest(
-        String name,
-        Repertoire.Color color,
-        String rootMove,
-        String description
+            String name,
+            Repertoire.Color color,
+            String rootMove,
+            String description
     ) {}
 
     public record AddLineRequest(
-        String lineName,
-        String pgn,
-        String notes,
-        Integer drillPriority,
-        UUID openingId
+            String lineName,
+            String pgn,
+            String notes,
+            Integer drillPriority,
+            UUID openingId
     ) {}
 
     public record UpdateLineRequest(
-        String lineName,
-        String pgn,
-        String notes,
-        Integer drillPriority
+            String lineName,
+            String pgn,
+            String notes,
+            Integer drillPriority
+    ) {}
+
+    public record UpdateMoveAnnotationRequest(
+            String annotation
     ) {}
 
     // ── Response DTOs ────────────────────────────────────────
 
     public record RepertoireResponse(
-        UUID id,
-        String name,
-        Repertoire.Color color,
-        String rootMove,
-        String description,
-        int lineCount,
-        Instant createdAt,
-        Instant updatedAt
+            UUID id,
+            String name,
+            Repertoire.Color color,
+            String rootMove,
+            String description,
+            int lineCount,
+            Instant createdAt,
+            Instant updatedAt
     ) {}
 
     public record RepertoireDetailResponse(
-        UUID id,
-        String name,
-        Repertoire.Color color,
-        String rootMove,
-        String description,
-        List<LineResponse> lines,
-        Instant createdAt,
-        Instant updatedAt
+            UUID id,
+            String name,
+            Repertoire.Color color,
+            String rootMove,
+            String description,
+            List<LineResponse> lines,
+            Instant createdAt,
+            Instant updatedAt
     ) {}
 
     public record LineResponse(
-        UUID id,
-        String lineName,
-        String pgn,
-        String notes,
-        int drillPriority,
-        int timesDrilled,
-        int moveCount,
-        Instant lastDrilledAt,
-        OpeningSummary opening,
-        Instant createdAt
+            UUID id,
+            String lineName,
+            String pgn,
+            String notes,
+            int drillPriority,
+            int timesDrilled,
+            int moveCount,
+            Instant lastDrilledAt,
+            OpeningSummary opening,
+            List<MoveResponse> moves,
+            Instant createdAt
+    ) {}
+
+    public record MoveResponse(
+            UUID id,
+            int moveNumber,
+            String moveSan,
+            String moveUci,
+            String fenAfter,
+            String annotation
     ) {}
 
     public record OpeningSummary(
-        UUID id,
-        String ecoCode,
-        String name,
-        String variation
+            UUID id,
+            String ecoCode,
+            String name,
+            String variation
     ) {}
 
     public record DrillResponse(
-        UUID lineId,
-        String lineName,
-        String repertoireName,
-        int moveNumber,
-        String fenAtPosition,
-        String expectedMoveSan,
-        String expectedMoveUci
+            UUID lineId,
+            String lineName,
+            String repertoireName,
+            int moveNumber,
+            String fenAtPosition,
+            String expectedMoveSan,
+            String expectedMoveUci
     ) {}
 
     public record DrillResultRequest(
-        UUID lineId,
-        boolean correct
+            UUID lineId,
+            boolean correct
     ) {}
 
     // ── Deviation & Accuracy ─────────────────────────────────
 
     public record DeviationResponse(
-        Long gameId,
-        String opponent,
-        Instant playedAt,
-        String repertoireLineName,
-        int deviationAtMove,
-        String expectedMove,
-        String actualMove,
-        String result
+            Long gameId,
+            String opponent,
+            Instant playedAt,
+            String repertoireLineName,
+            int deviationAtMove,
+            String expectedMove,
+            String actualMove,
+            String result
     ) {}
 
     public record AccuracyResponse(
-        double overallAccuracy,
-        int movesMatchedPrep,
-        int totalPrepMoves,
-        List<LineAccuracy> perLineBreakdown
+            double overallAccuracy,
+            int movesMatchedPrep,
+            int totalPrepMoves,
+            List<LineAccuracy> perLineBreakdown
     ) {}
 
     public record LineAccuracy(
-        String lineName,
-        double accuracy,
-        int matchedMoves,
-        int totalMoves
+            String lineName,
+            double accuracy,
+            int matchedMoves,
+            int totalMoves
     ) {}
 }

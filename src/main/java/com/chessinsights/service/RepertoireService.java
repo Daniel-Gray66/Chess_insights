@@ -2,6 +2,7 @@ package com.chessinsights.service;
 
 import com.chessinsights.dto.RepertoireDtos.*;
 import com.chessinsights.entity.*;
+import com.chessinsights.repository.LineMoveRepository;
 import com.chessinsights.repository.OpeningRepository;
 import com.chessinsights.repository.RepertoireLineRepository;
 import com.chessinsights.repository.RepertoireRepository;
@@ -9,6 +10,7 @@ import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -18,15 +20,18 @@ public class RepertoireService {
 
     private final RepertoireRepository repertoireRepo;
     private final RepertoireLineRepository lineRepo;
+    private final LineMoveRepository moveRepo;
     private final OpeningRepository openingRepo;
     private final PgnParserService pgnParser;
 
     public RepertoireService(RepertoireRepository repertoireRepo,
                              RepertoireLineRepository lineRepo,
+                             LineMoveRepository moveRepo,
                              OpeningRepository openingRepo,
                              PgnParserService pgnParser) {
         this.repertoireRepo = repertoireRepo;
         this.lineRepo = lineRepo;
+        this.moveRepo = moveRepo;
         this.openingRepo = openingRepo;
         this.pgnParser = pgnParser;
     }
@@ -77,7 +82,6 @@ public class RepertoireService {
     public LineResponse addLine(User player, UUID repertoireId, AddLineRequest request) {
         Repertoire repertoire = findRepertoireForPlayer(player, repertoireId);
 
-        // Validate PGN before persisting
         if (!pgnParser.isValid(request.pgn())) {
             throw new IllegalArgumentException("Invalid PGN: " + request.pgn());
         }
@@ -99,7 +103,6 @@ public class RepertoireService {
             line.setOpening(opening);
         }
 
-        // Parse PGN into individual LineMove entities
         List<LineMove> moves = pgnParser.parse(line, request.pgn());
         line.getMoves().addAll(moves);
 
@@ -120,7 +123,6 @@ public class RepertoireService {
                 throw new IllegalArgumentException("Invalid PGN: " + request.pgn());
             }
             line.setPgn(request.pgn());
-            // Clear old moves and re-parse
             line.getMoves().clear();
             List<LineMove> newMoves = pgnParser.parse(line, request.pgn());
             line.getMoves().addAll(newMoves);
@@ -141,6 +143,30 @@ public class RepertoireService {
     }
 
     // ══════════════════════════════════════════════════════════
+    //  MOVE ANNOTATION
+    // ══════════════════════════════════════════════════════════
+
+    @Transactional
+    public MoveResponse updateMoveAnnotation(User player, UUID repertoireId, UUID lineId, UUID moveId,
+                                              UpdateMoveAnnotationRequest request) {
+        findRepertoireForPlayer(player, repertoireId);
+        lineRepo.findByIdAndRepertoireId(lineId, repertoireId)
+                .orElseThrow(() -> new EntityNotFoundException("Line not found: " + lineId));
+
+        LineMove move = moveRepo.findById(moveId)
+                .orElseThrow(() -> new EntityNotFoundException("Move not found: " + moveId));
+
+        // Verify the move belongs to this line
+        if (!move.getLine().getId().equals(lineId)) {
+            throw new EntityNotFoundException("Move does not belong to this line");
+        }
+
+        move.setAnnotation(request.annotation());
+        LineMove saved = moveRepo.save(move);
+        return toMoveResponse(saved);
+    }
+
+    // ══════════════════════════════════════════════════════════
     //  DRILL MODE
     // ══════════════════════════════════════════════════════════
 
@@ -152,7 +178,6 @@ public class RepertoireService {
             throw new IllegalStateException("No lines available to drill in this repertoire");
         }
 
-        // Weighted random selection: higher drillPriority = more likely to be picked
         RepertoireLine selected = weightedSelect(candidates);
 
         List<LineMove> moves = selected.getMoves();
@@ -162,10 +187,8 @@ public class RepertoireService {
                     + "Delete and re-add the line to generate moves.");
         }
 
-        // Pick a random position in the line (not the last move — need a "next" move)
         int maxIndex = moves.size() - 1;
         if (maxIndex < 1) {
-            // Only one move in the line — quiz on the first move from starting position
             LineMove expectedNext = moves.get(0);
             return new DrillResponse(
                     selected.getId(),
@@ -202,7 +225,6 @@ public class RepertoireService {
 
         line.recordDrill();
 
-        // Spaced repetition: adjust priority based on correctness
         if (request.correct()) {
             line.setDrillPriority(Math.max(1, line.getDrillPriority() - 1));
         } else {
@@ -278,6 +300,11 @@ public class RepertoireService {
             openingSummary = new OpeningSummary(o.getId(), o.getEcoCode(), o.getName(), o.getVariation());
         }
 
+        List<MoveResponse> moveResponses = l.getMoves().stream()
+                .sorted(Comparator.comparingInt(LineMove::getMoveNumber))
+                .map(this::toMoveResponse)
+                .toList();
+
         return new LineResponse(
                 l.getId(),
                 l.getLineName(),
@@ -288,7 +315,19 @@ public class RepertoireService {
                 l.getMoves().size(),
                 l.getLastDrilledAt(),
                 openingSummary,
+                moveResponses,
                 l.getCreatedAt()
+        );
+    }
+
+    private MoveResponse toMoveResponse(LineMove m) {
+        return new MoveResponse(
+                m.getId(),
+                m.getMoveNumber(),
+                m.getMoveSan(),
+                m.getMoveUci(),
+                m.getFenAfter(),
+                m.getAnnotation()
         );
     }
 }

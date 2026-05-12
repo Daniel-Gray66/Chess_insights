@@ -109,6 +109,22 @@ public class RepertoireController {
     }
 
     // ══════════════════════════════════════════════════════════
+    //  MOVE ANNOTATION
+    // ══════════════════════════════════════════════════════════
+
+    @PutMapping("/{repertoireId}/lines/{lineId}/moves/{moveId}")
+    public ResponseEntity<MoveResponse> updateMoveAnnotation(
+            Authentication auth,
+            @PathVariable UUID repertoireId,
+            @PathVariable UUID lineId,
+            @PathVariable UUID moveId,
+            @RequestBody UpdateMoveAnnotationRequest request) {
+        User player = getUser(auth);
+        return ResponseEntity.ok(
+                repertoireService.updateMoveAnnotation(player, repertoireId, lineId, moveId, request));
+    }
+
+    // ══════════════════════════════════════════════════════════
     //  DRILL MODE
     // ══════════════════════════════════════════════════════════
 
