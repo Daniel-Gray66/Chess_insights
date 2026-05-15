@@ -17,11 +17,17 @@ public class User {
     @Column(nullable = false, unique = true)
     private String username;
 
-    @Column(nullable = false)
+    @Column
     private String password;
 
-    @Column(name = "chess_com_username", nullable = false, unique = true)
+    @Column(name = "chess_com_username", unique = true)
     private String chessComUsername;
+
+    @Column(name = "supabase_id", unique = true)
+    private String supabaseId;
+
+    @Column
+    private String email;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

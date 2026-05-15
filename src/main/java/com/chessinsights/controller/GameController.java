@@ -5,6 +5,7 @@ import com.chessinsights.entity.User;
 import com.chessinsights.exception.ResourceNotFoundException;
 import com.chessinsights.repository.GameRepository;
 import com.chessinsights.repository.UserRepository;
+import com.chessinsights.config.CurrentUserProvider;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -28,6 +29,7 @@ public class GameController {
 
     private final GameRepository gameRepository;
     private final UserRepository userRepository;
+    private final CurrentUserProvider currentUserProvider;
 
     @GetMapping
     @Operation(summary = "Search and filter games")
@@ -111,7 +113,6 @@ public class GameController {
     }
 
     private User getUser(Authentication auth) {
-        return userRepository.findByUsername(auth.getName())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return currentUserProvider.getUser(auth);
     }
 }

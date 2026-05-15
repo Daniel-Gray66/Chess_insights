@@ -5,6 +5,7 @@ import com.chessinsights.entity.Repertoire;
 import com.chessinsights.entity.User;
 import com.chessinsights.exception.ResourceNotFoundException;
 import com.chessinsights.repository.UserRepository;
+import com.chessinsights.config.CurrentUserProvider;
 import com.chessinsights.service.DeviationAnalysisService;
 import com.chessinsights.service.RepertoireService;
 import org.springframework.http.HttpStatus;
@@ -22,18 +23,20 @@ public class RepertoireController {
     private final RepertoireService repertoireService;
     private final DeviationAnalysisService deviationService;
     private final UserRepository userRepository;
+    private final CurrentUserProvider currentUserProvider;
 
     public RepertoireController(RepertoireService repertoireService,
+                                 CurrentUserProvider currentUserProvider,
                                  DeviationAnalysisService deviationService,
                                  UserRepository userRepository) {
         this.repertoireService = repertoireService;
         this.deviationService = deviationService;
         this.userRepository = userRepository;
+        this.currentUserProvider = currentUserProvider;
     }
 
     private User getUser(Authentication auth) {
-        return userRepository.findByUsername(auth.getName())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return currentUserProvider.getUser(auth);
     }
 
     // ══════════════════════════════════════════════════════════

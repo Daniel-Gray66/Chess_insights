@@ -5,6 +5,7 @@ import com.chessinsights.entity.User;
 import com.chessinsights.exception.ResourceNotFoundException;
 import com.chessinsights.repository.SyncJobRepository;
 import com.chessinsights.repository.UserRepository;
+import com.chessinsights.config.CurrentUserProvider;
 import com.chessinsights.service.GameSyncService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -28,6 +29,7 @@ public class SyncController {
     private final GameSyncService gameSyncService;
     private final SyncJobRepository syncJobRepository;
     private final UserRepository userRepository;
+    private final CurrentUserProvider currentUserProvider;
 
     @PostMapping
     @Operation(summary = "Trigger a game sync",
@@ -82,7 +84,6 @@ public class SyncController {
     }
 
     private User getUser(Authentication auth) {
-        return userRepository.findByUsername(auth.getName())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return currentUserProvider.getUser(auth);
     }
 }

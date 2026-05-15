@@ -4,6 +4,7 @@ import com.chessinsights.entity.User;
 import com.chessinsights.exception.ResourceNotFoundException;
 import com.chessinsights.repository.GameRepository;
 import com.chessinsights.repository.UserRepository;
+import com.chessinsights.config.CurrentUserProvider;
 import com.chessinsights.service.StatsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -30,6 +31,7 @@ public class StatsController {
     private final StatsService statsService;
     private final GameRepository gameRepository;
     private final UserRepository userRepository;
+    private final CurrentUserProvider currentUserProvider;
 
     @GetMapping("/overview")
     @Operation(summary = "Overall stats overview")
@@ -113,8 +115,7 @@ public class StatsController {
     }
 
     private User getUser(Authentication auth) {
-        return userRepository.findByUsername(auth.getName())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return currentUserProvider.getUser(auth);
     }
 
     private Instant parseRange(String range) {
