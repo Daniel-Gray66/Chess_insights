@@ -169,4 +169,12 @@ public class RepertoireController {
         User player = getUser(auth);
         return ResponseEntity.ok(deviationService.calculateAccuracy(player, id));
     }
+    @PatchMapping("/{id}/visibility")
+public ResponseEntity<RepertoireResponse> updateVisibility(
+        Authentication auth,
+        @PathVariable UUID id,
+        @RequestBody UpdateVisibilityRequest request) {
+    User player = getUser(auth);
+    return ResponseEntity.ok(repertoireService.updateVisibility(player, id, request.visibility()));
+}
 }

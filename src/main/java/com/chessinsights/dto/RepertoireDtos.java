@@ -36,7 +36,17 @@ public class RepertoireDtos {
             String annotation
     ) {}
 
+    public record UpdateVisibilityRequest(
+            String visibility
+    ) {}
+
     // ── Response DTOs ────────────────────────────────────────
+
+    public record AuthorInfo(
+            Long id,
+            String username,
+            String chessComUsername
+    ) {}
 
     public record RepertoireResponse(
             UUID id,
@@ -45,6 +55,8 @@ public class RepertoireDtos {
             String rootMove,
             String description,
             int lineCount,
+            String visibility,
+            AuthorInfo author,
             Instant createdAt,
             Instant updatedAt
     ) {}
@@ -56,8 +68,37 @@ public class RepertoireDtos {
             String rootMove,
             String description,
             List<LineResponse> lines,
+            String visibility,
+            AuthorInfo author,
+            boolean isOwner,
+            boolean isBookmarked,
+            long bookmarkCount,
             Instant createdAt,
             Instant updatedAt
+    ) {}
+
+    public record CommunityRepertoireResponse(
+            UUID id,
+            String name,
+            Repertoire.Color color,
+            String rootMove,
+            String description,
+            int lineCount,
+            AuthorInfo author,
+            long bookmarkCount,
+            Instant createdAt,
+            Instant updatedAt
+    ) {}
+
+    public record BookmarkResponse(
+            UUID repertoireId,
+            String repertoireName,
+            Repertoire.Color color,
+            String rootMove,
+            String description,
+            AuthorInfo author,
+            int lineCount,
+            Instant bookmarkedAt
     ) {}
 
     public record LineResponse(

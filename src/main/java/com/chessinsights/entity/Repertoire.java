@@ -1,4 +1,3 @@
-
 package com.chessinsights.entity;
 
 import jakarta.persistence.*;
@@ -35,6 +34,10 @@ public class Repertoire {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Visibility visibility = Visibility.PRIVATE;
+
     @OneToMany(mappedBy = "repertoire", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("createdAt ASC")
     private List<RepertoireLine> lines = new ArrayList<>();
@@ -51,6 +54,10 @@ public class Repertoire {
         WHITE, BLACK
     }
 
+    public enum Visibility {
+        PRIVATE, PUBLIC, SHARED
+    }
+
     public Repertoire() {}
 
     public Repertoire(User player, String name, Color color, String rootMove, String description) {
@@ -59,6 +66,7 @@ public class Repertoire {
         this.color = color;
         this.rootMove = rootMove;
         this.description = description;
+        this.visibility = Visibility.PRIVATE;
     }
 
     public UUID getId() { return id; }
@@ -78,6 +86,9 @@ public class Repertoire {
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+
+    public Visibility getVisibility() { return visibility; }
+    public void setVisibility(Visibility visibility) { this.visibility = visibility; }
 
     public List<RepertoireLine> getLines() { return lines; }
     public void setLines(List<RepertoireLine> lines) { this.lines = lines; }
